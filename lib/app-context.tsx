@@ -212,7 +212,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const targetUrl = "https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=" + gnewsApiKey
 
       // 3. Wrap with AllOrigins /get endpoint to bypass CORS
-      const proxyUrl = "https://api.allorigins.win/get?url=" + encodeURIComponent(targetUrl)
+      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
       console.log("[v0] Proxy URL:", proxyUrl)
 
       // 4. Fetch from the proxy
