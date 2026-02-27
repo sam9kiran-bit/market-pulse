@@ -1,5 +1,4 @@
 "use client"
-
 import { AppProvider } from "@/lib/app-context"
 import { AppHeader } from "@/components/app-header"
 import { ErrorBanner } from "@/components/error-banner"
@@ -7,7 +6,6 @@ import { LeadersBleeders } from "@/components/leaders-bleeders"
 import { NewsFeed } from "@/components/news-feed"
 import { AIForecast, Disclaimer } from "@/components/ai-forecast"
 import { Separator } from "@/components/ui/separator"
-
 export default function HomePage() {
   return (
     <AppProvider>
