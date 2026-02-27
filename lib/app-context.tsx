@@ -249,7 +249,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("[v0] News Fetch Error:", error)
-
+const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${key}`;
+const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
       const msg = error instanceof Error ? error.message : String(error)
 
       if (msg.includes("Unauthorized") || msg.includes("Forbidden") || msg.includes("401") || msg.includes("403")) {
