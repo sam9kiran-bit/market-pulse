@@ -3,9 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp"
-    ]
+    "onlyBuiltDependencies": ["sharp"]
   },
   "scripts": {
     "dev": "next dev",
@@ -17,9 +15,8 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "lucide-react": "latest",
-    "sharp": "^0.33.2",
+    "@google/generative-ai": "latest",
     "clsx": "latest",
-    "tailwind-merge": "latest",
-    "@google/generative-ai": "latest"
+    "tailwind-merge": "latest"
   }
 }
