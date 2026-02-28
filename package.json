@@ -2,6 +2,11 @@
   "name": "market-pulse",
   "version": "0.1.0",
   "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -11,11 +16,7 @@
     "next": "14.1.0",
     "react": "18.2.0",
     "react-dom": "18.2.0",
-    "lucide-react": "latest"
-  },
-"pnpm": {
-    "onlyBuiltDependencies": [
-      "sharp"
-    ]
+    "lucide-react": "latest",
+    "sharp": "latest"
   }
 }
