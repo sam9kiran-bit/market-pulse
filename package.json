@@ -15,8 +15,9 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "lucide-react": "latest",
-    "@google/generative-ai": "latest",
+    "sharp": "0.33.2",
     "clsx": "latest",
-    "tailwind-merge": "latest"
+    "tailwind-merge": "latest",
+    "@google/generative-ai": "latest"
   }
 }
