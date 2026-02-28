@@ -2,6 +2,11 @@
   "name": "market-pulse",
   "version": "0.1.0",
   "private": true,
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
@@ -12,10 +17,9 @@
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "lucide-react": "latest",
-    "sharp": "0.33.2",
+    "sharp": "^0.33.2",
+    "clsx": "latest",
+    "tailwind-merge": "latest",
     "@google/generative-ai": "latest"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": ["sharp"]
   }
 }
