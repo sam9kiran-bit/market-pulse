@@ -1,14 +1,11 @@
 {
-  "pnpm": {
-    "onlyBuiltDependencies": ["sharp"]
-  },
   "name": "market-pulse",
   "version": "0.1.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start"
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "sharp"
+    ]
   },
   "dependencies": {
     "next": "14.2.0",
@@ -19,5 +16,10 @@
     "clsx": "latest",
     "tailwind-merge": "latest",
     "@google/generative-ai": "latest"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
   }
 }
