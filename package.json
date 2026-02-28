@@ -2,7 +2,6 @@
   "name": "market-pulse",
   "version": "0.1.0",
   "private": true,
-  "packageManager": "pnpm@10.2.0",
   "pnpm": {
     "onlyBuiltDependencies": ["sharp"]
   },
