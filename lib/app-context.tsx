@@ -1,6 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from "react"
+import { fetchNewsServer, fetchGeminiServer } from "./actions"
 import type { WatchlistItem, StockQuote, NewsArticle, AIAnalysis, ApiKeys, TimePeriod } from "./types"
 
 interface AppState {
@@ -36,33 +37,6 @@ const DEFAULT_WATCHLIST: WatchlistItem[] = [
   { symbol: "TCS.BSE", name: "Tata Consultancy Services", type: "stock" },
   { symbol: "INFY.BSE", name: "Infosys", type: "stock" },
 ]
-
-// Server action helper to bypass CORS for news
-async function fetchNewsServer(apiKey: string) {
-  const res = await fetch(`https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${apiKey}`, {
-    cache: 'no-store'
-  });
-  if (!res.ok) throw new Error("Failed to fetch news data");
-  return res.json();
-}
-
-// Server action helper to bypass CORS for Gemini
-async function fetchGeminiServer(prompt: string, apiKey: string) {
-  const res = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.7 },
-      }),
-      cache: 'no-store'
-    }
-  );
-  if (!res.ok) throw new Error(`API returned ${res.status}`);
-  return res.json();
-}
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [apiKeys, setApiKeysState] = useState<ApiKeys>({
@@ -152,9 +126,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             volume: parseInt(gq["06. volume"]),
           })
         }
-      } catch (err) {
-        console.error(`Failed to fetch quote:`, err)
-      }
+      } catch (err) {}
     }
 
     if (rateLimited) setError("Alpha Vantage API limit reached. Showing partial data.")
@@ -178,8 +150,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setError(null)
 
     try {
-      // Uses the direct server helper defined above
       const data = await fetchNewsServer(gnewsApiKey);
+
+      if (data.error) throw new Error(data.error);
 
       if (data.articles && data.articles.length > 0) {
         setNews(
@@ -262,8 +235,9 @@ Format your response as JSON matching this schema:
 Return ONLY the JSON, no markdown fences or extra text.`
 
     try {
-      // Uses the server helper to bypass CORS and formatting issues
       const data = await fetchGeminiServer(prompt, keys.geminiKey);
+      
+      if (data.error) throw new Error(data.error);
       
       const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
 
