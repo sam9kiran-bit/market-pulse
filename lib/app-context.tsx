@@ -45,7 +45,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   })
   const apiKeysRef = useRef(apiKeys)
 
-  // Keep ref in sync and expose a setter that updates both
   const setApiKeys = useCallback((keys: ApiKeys) => {
     apiKeysRef.current = keys
     setApiKeysState(keys)
@@ -60,7 +59,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [selectedPeriod, setSelectedPeriod] = useState<TimePeriod>("1D")
   const [error, setError] = useState<string | null>(null)
 
-  // Load watchlist from localStorage on mount
   useEffect(() => {
     try {
       const saved = localStorage.getItem("marketpulse-watchlist")
@@ -74,14 +72,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  // Save watchlist to localStorage
   useEffect(() => {
     if (watchlist.length > 0) {
       localStorage.setItem("marketpulse-watchlist", JSON.stringify(watchlist))
     }
   }, [watchlist])
 
-  // Load cached quotes from localStorage if < 12 hours old
   useEffect(() => {
     try {
       const cached = localStorage.getItem("marketpulse-quotes-cache")
@@ -102,7 +98,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const keys = apiKeysRef.current
     if (!keys.alphaVantageKey || watchlist.length === 0) return
 
-    // Check localStorage cache first (12 hour TTL)
     try {
       const cached = localStorage.getItem("marketpulse-quotes-cache")
       if (cached) {
@@ -115,7 +110,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
       }
     } catch {
-      // Ignore corrupted cache, proceed to fetch
+      // Ignore corrupted cache
     }
 
     setIsLoadingQuotes(true)
@@ -131,7 +126,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         )
         const data = await res.json()
 
-        // Alpha Vantage returns a "Note" key when rate limited
         if (data["Note"] || data["Information"]) {
           rateLimited = true
           break
@@ -152,8 +146,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             low: parseFloat(gq["04. low"]),
             volume: parseInt(gq["06. volume"]),
           })
-        } else if (!gq || Object.keys(gq).length === 0) {
-          console.error(`No data returned for ${item.symbol}`)
         }
       } catch (err) {
         console.error(`Failed to fetch quote for ${item.symbol}:`, err)
@@ -168,15 +160,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           timestamp: Date.now(),
         }))
       }
-      setError("Alpha Vantage API limit reached (25 requests/day). Showing cached or partial data. Try again later.")
+      setError("Alpha Vantage API limit reached. Showing cached or partial data.")
     } else if (newQuotes.size > 0) {
       setQuotes(newQuotes)
       localStorage.setItem("marketpulse-quotes-cache", JSON.stringify({
         data: Object.fromEntries(newQuotes),
         timestamp: Date.now(),
       }))
-    } else if (watchlist.length > 0) {
-      setError("Data unavailable. Alpha Vantage returned no quotes for your watchlist symbols.")
     }
 
     setIsLoadingQuotes(false)
@@ -191,17 +181,20 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setError(null)
 
     try {
-      // Direct call to GNews API - removed proxy
+      // Working reliable proxy to bypass CORS restrictions
       const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${gnewsApiKey}`
+      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
 
-      const response = await fetch(targetUrl)
+      const response = await fetch(proxyUrl)
 
       if (!response.ok) {
-        const errText = await response.text()
-        throw new Error(errText)
+        throw new Error("Network response was not ok")
       }
 
-      const data = await response.json()
+      const proxyData = await response.json()
+      
+      // AllOrigins returns the data as a string inside the 'contents' property
+      const data = JSON.parse(proxyData.contents)
 
       if (data.articles && data.articles.length > 0) {
         setNews(
@@ -218,13 +211,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("News Fetch Error:", error)
-      const msg = error instanceof Error ? error.message : String(error)
-
-      if (msg.includes("Unauthorized") || msg.includes("Forbidden") || msg.includes("401") || msg.includes("403")) {
-        setError("API Key was rejected by GNews. Please check your key in Settings.")
-      } else {
-        setError("Failed to fetch news. Please try again later.")
-      }
+      setError("Failed to fetch news. Please check your API key or try again later.")
     }
 
     setIsLoadingNews(false)
@@ -306,7 +293,6 @@ Return ONLY the JSON, no markdown fences or extra text.`
       const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
 
       if (textContent) {
-        // Strip markdown fences if present using robust regex
         let cleaned = textContent;
         const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         if (jsonMatch) {
