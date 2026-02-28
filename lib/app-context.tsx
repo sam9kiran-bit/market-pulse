@@ -81,17 +81,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [watchlist])
 
-  const addToWatchlist = useCallback((item: WatchlistItem) => {
-    setWatchlist((prev) => {
-      if (prev.some((w) => w.symbol === item.symbol)) return prev
-      return [...prev, item]
-    })
-  }, [])
-
-  const removeFromWatchlist = useCallback((symbol: string) => {
-    setWatchlist((prev) => prev.filter((w) => w.symbol !== symbol))
-  }, [])
-
   // Load cached quotes from localStorage if < 12 hours old
   useEffect(() => {
     try {
@@ -249,8 +238,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("[v0] News Fetch Error:", error)
-const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${key}`;
-const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${gnewsApiKey}`;
+      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
       const msg = error instanceof Error ? error.message : String(error)
 
       if (msg.includes("Unauthorized") || msg.includes("Forbidden") || msg.includes("401") || msg.includes("403")) {
@@ -338,11 +327,16 @@ Return ONLY the JSON, no markdown fences or extra text.`
       )
 
       const data = await res.json()
-      const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      const textContent = data?.candidates?.?.content?.parts?.?.text
 
       if (textContent) {
-        // Strip markdown fences if present
-        const cleaned = textContent.replace(/```json\n?/g, "").replace(/```\n?/g, "").trim()
+        // Strip markdown fences if present using robust regex
+        let cleaned = textContent;
+        const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+        if (jsonMatch) {
+            cleaned = jsonMatch;[11]
+        }
+        
         const parsed = JSON.parse(cleaned) as Omit<AIAnalysis, "generatedAt">
         setAiAnalysis({
           ...parsed,
