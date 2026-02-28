@@ -153,7 +153,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             volume: parseInt(gq["06. volume"]),
           })
         } else if (!gq || Object.keys(gq).length === 0) {
-          // Empty Global Quote means no data available for this symbol
           console.error(`No data returned for ${item.symbol}`)
         }
       } catch (err) {
@@ -162,10 +161,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (rateLimited) {
-      // If we got some quotes before the limit, keep them
       if (newQuotes.size > 0) {
         setQuotes(newQuotes)
-        // Cache partial results
         localStorage.setItem("marketpulse-quotes-cache", JSON.stringify({
           data: Object.fromEntries(newQuotes),
           timestamp: Date.now(),
@@ -174,7 +171,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       setError("Alpha Vantage API limit reached (25 requests/day). Showing cached or partial data. Try again later.")
     } else if (newQuotes.size > 0) {
       setQuotes(newQuotes)
-      // Cache successful results with timestamp
       localStorage.setItem("marketpulse-quotes-cache", JSON.stringify({
         data: Object.fromEntries(newQuotes),
         timestamp: Date.now(),
@@ -189,43 +185,27 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const fetchNews = useCallback(async () => {
     const gnewsApiKey = apiKeysRef.current.gnewsApiKey
 
-    // 1. Check if key exists
-    console.log("[v0] Key check:", !!gnewsApiKey)
     if (!gnewsApiKey) return
 
     setIsLoadingNews(true)
     setError(null)
 
     try {
-      // 2. Build the target GNews URL
-      const targetUrl = "https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=" + gnewsApiKey
+      // Direct call to GNews API - removed proxy
+      const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${gnewsApiKey}`
 
-      // 3. Wrap with AllOrigins /get endpoint to bypass CORS
-      const proxyUrl = 'https://corsproxy.io/?' + encodeURIComponent(targetUrl);
-      console.log("[v0] Proxy URL:", proxyUrl)
-
-      // 4. Fetch from the proxy
-      const response = await fetch(proxyUrl)
-      console.log("[v0] Response status:", response.status)
+      const response = await fetch(targetUrl)
 
       if (!response.ok) {
         const errText = await response.text()
-        console.log("[v0] Error response body:", errText)
         throw new Error(errText)
       }
 
-      // 5. AllOrigins /get wraps the real response inside { contents: "..." }
-      const proxyData = await response.json()
-      console.log("[v0] Proxy wrapper keys:", Object.keys(proxyData))
+      const data = await response.json()
 
-      // 6. Parse the actual GNews JSON from the contents string
-      const data = JSON.parse(proxyData.contents)
-      console.log("[v0] Final parsed articles:", data.articles)
-
-      // 7. GNews format: { totalArticles: number, articles: [...] }
       if (data.articles && data.articles.length > 0) {
         setNews(
-          data.articles.slice(0, 15).map((article: { title: string; description: string | null; url: string; source: { name: string }; publishedAt: string }) => ({
+          data.articles.slice(0, 15).map((article: any) => ({
             title: article.title,
             description: article.description,
             url: article.url,
@@ -237,17 +217,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setNews([])
       }
     } catch (error) {
-      console.error("[v0] News Fetch Error:", error)
-      const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${gnewsApiKey}`;
-      const proxyUrl = `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`;
+      console.error("News Fetch Error:", error)
       const msg = error instanceof Error ? error.message : String(error)
 
       if (msg.includes("Unauthorized") || msg.includes("Forbidden") || msg.includes("401") || msg.includes("403")) {
         setError("API Key was rejected by GNews. Please check your key in Settings.")
-      } else if (msg.includes("API Key is missing") || msg.includes("apikey")) {
-        setError("The app state lost the API key. Please re-enter it in Settings.")
       } else {
-        setError("Failed to fetch news: " + msg)
+        setError("Failed to fetch news. Please try again later.")
       }
     }
 
@@ -327,14 +303,14 @@ Return ONLY the JSON, no markdown fences or extra text.`
       )
 
       const data = await res.json()
-      const textContent = data?.candidates?.?.content?.parts?.?.text
+      const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
 
       if (textContent) {
         // Strip markdown fences if present using robust regex
         let cleaned = textContent;
         const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
         if (jsonMatch) {
-            cleaned = jsonMatch;[11]
+            cleaned = jsonMatch[1];
         }
         
         const parsed = JSON.parse(cleaned) as Omit<AIAnalysis, "generatedAt">
