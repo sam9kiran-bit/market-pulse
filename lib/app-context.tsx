@@ -37,6 +37,33 @@ const DEFAULT_WATCHLIST: WatchlistItem[] = [
   { symbol: "INFY.BSE", name: "Infosys", type: "stock" },
 ]
 
+// Server action helper to bypass CORS for news
+async function fetchNewsServer(apiKey: string) {
+  const res = await fetch(`https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${apiKey}`, {
+    cache: 'no-store'
+  });
+  if (!res.ok) throw new Error("Failed to fetch news data");
+  return res.json();
+}
+
+// Server action helper to bypass CORS for Gemini
+async function fetchGeminiServer(prompt: string, apiKey: string) {
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { temperature: 0.7 },
+      }),
+      cache: 'no-store'
+    }
+  );
+  if (!res.ok) throw new Error(`API returned ${res.status}`);
+  return res.json();
+}
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [apiKeys, setApiKeysState] = useState<ApiKeys>({
     gnewsApiKey: "",
@@ -49,6 +76,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     apiKeysRef.current = keys
     setApiKeysState(keys)
   }, [])
+  
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([])
   const [quotes, setQuotes] = useState<Map<string, StockQuote>>(new Map())
   const [news, setNews] = useState<NewsArticle[]>([])
@@ -62,11 +90,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     try {
       const saved = localStorage.getItem("marketpulse-watchlist")
-      if (saved) {
-        setWatchlist(JSON.parse(saved))
-      } else {
-        setWatchlist(DEFAULT_WATCHLIST)
-      }
+      if (saved) setWatchlist(JSON.parse(saved))
+      else setWatchlist(DEFAULT_WATCHLIST)
     } catch {
       setWatchlist(DEFAULT_WATCHLIST)
     }
@@ -83,35 +108,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const cached = localStorage.getItem("marketpulse-quotes-cache")
       if (cached) {
         const { data, timestamp } = JSON.parse(cached)
-        const twelveHours = 12 * 60 * 60 * 1000
-        if (Date.now() - timestamp < twelveHours && data && Object.keys(data).length > 0) {
-          const restored = new Map<string, StockQuote>(Object.entries(data))
-          setQuotes(restored)
+        if (Date.now() - timestamp < 12 * 60 * 60 * 1000 && data) {
+          setQuotes(new Map(Object.entries(data)))
         }
       }
-    } catch {
-      // Ignore corrupted cache
-    }
+    } catch {}
   }, [])
 
   const fetchQuotes = useCallback(async () => {
     const keys = apiKeysRef.current
     if (!keys.alphaVantageKey || watchlist.length === 0) return
-
-    try {
-      const cached = localStorage.getItem("marketpulse-quotes-cache")
-      if (cached) {
-        const { data, timestamp } = JSON.parse(cached)
-        const twelveHours = 12 * 60 * 60 * 1000
-        if (Date.now() - timestamp < twelveHours && data && Object.keys(data).length > 0) {
-          const restored = new Map<string, StockQuote>(Object.entries(data))
-          setQuotes(restored)
-          return
-        }
-      }
-    } catch {
-      // Ignore corrupted cache
-    }
 
     setIsLoadingQuotes(true)
     setError(null)
@@ -132,7 +138,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
 
         const gq = data["Global Quote"]
-
         if (gq && gq["05. price"]) {
           newQuotes.set(item.symbol, {
             symbol: item.symbol,
@@ -148,20 +153,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           })
         }
       } catch (err) {
-        console.error(`Failed to fetch quote for ${item.symbol}:`, err)
+        console.error(`Failed to fetch quote:`, err)
       }
     }
 
-    if (rateLimited) {
-      if (newQuotes.size > 0) {
-        setQuotes(newQuotes)
-        localStorage.setItem("marketpulse-quotes-cache", JSON.stringify({
-          data: Object.fromEntries(newQuotes),
-          timestamp: Date.now(),
-        }))
-      }
-      setError("Alpha Vantage API limit reached. Showing cached or partial data.")
-    } else if (newQuotes.size > 0) {
+    if (rateLimited) setError("Alpha Vantage API limit reached. Showing partial data.")
+    
+    if (newQuotes.size > 0) {
       setQuotes(newQuotes)
       localStorage.setItem("marketpulse-quotes-cache", JSON.stringify({
         data: Object.fromEntries(newQuotes),
@@ -174,24 +172,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const fetchNews = useCallback(async () => {
     const gnewsApiKey = apiKeysRef.current.gnewsApiKey
-
     if (!gnewsApiKey) return
 
     setIsLoadingNews(true)
     setError(null)
 
     try {
-      const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${gnewsApiKey}`
-      const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
-
-      const response = await fetch(proxyUrl)
-
-      if (!response.ok) {
-        throw new Error("Network response was not ok")
-      }
-
-      const proxyData = await response.json()
-      const data = JSON.parse(proxyData.contents)
+      // Uses the direct server helper defined above
+      const data = await fetchNewsServer(gnewsApiKey);
 
       if (data.articles && data.articles.length > 0) {
         setNews(
@@ -274,38 +262,15 @@ Format your response as JSON matching this schema:
 Return ONLY the JSON, no markdown fences or extra text.`
 
     try {
-      // Switched to highly stable gemini-1.5-flash model
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keys.geminiKey}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { temperature: 0.7 },
-          }),
-        }
-      )
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`API returned ${res.status}: ${errText}`);
-      }
-
-      const data = await res.json()
+      // Uses the server helper to bypass CORS and formatting issues
+      const data = await fetchGeminiServer(prompt, keys.geminiKey);
       
-      if (!data.candidates || data.candidates.length === 0) {
-          throw new Error("No candidates returned from Gemini API");
-      }
-
-      const textContent = data.candidates[0]?.content?.parts?.[0]?.text
+      const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
 
       if (textContent) {
         let cleaned = textContent;
         const jsonMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-        if (jsonMatch) {
-            cleaned = jsonMatch[1];
-        }
+        if (jsonMatch) cleaned = jsonMatch[1];
         
         const parsed = JSON.parse(cleaned) as Omit<AIAnalysis, "generatedAt">
         setAiAnalysis({
@@ -313,16 +278,11 @@ Return ONLY the JSON, no markdown fences or extra text.`
           generatedAt: new Date().toISOString(),
         })
       } else {
-        throw new Error("Text content was undefined in the API response");
+        throw new Error("Invalid response format from Gemini");
       }
     } catch (err) {
       console.error("Gemini API error:", err)
-      const msg = err instanceof Error ? err.message : String(err)
-      if (msg.includes("API key not valid") || msg.includes("API_KEY_INVALID")) {
-          setError("Your Gemini API Key is invalid. Please check your settings.");
-      } else {
-          setError(`AI analysis failed: ${msg}. Please try again.`);
-      }
+      setError("AI analysis failed. Please check your API key and try again.");
     }
 
     setIsLoadingAI(false)
@@ -331,23 +291,9 @@ Return ONLY the JSON, no markdown fences or extra text.`
   return (
     <AppContext.Provider
       value={{
-        apiKeys,
-        setApiKeys,
-        watchlist,
-        addToWatchlist,
-        removeFromWatchlist,
-        quotes,
-        news,
-        aiAnalysis,
-        isLoadingQuotes,
-        isLoadingNews,
-        isLoadingAI,
-        selectedPeriod,
-        setSelectedPeriod,
-        fetchAllData,
-        fetchAIAnalysis,
-        error,
-        setError,
+        apiKeys, setApiKeys, watchlist, addToWatchlist, removeFromWatchlist, quotes, news, aiAnalysis,
+        isLoadingQuotes, isLoadingNews, isLoadingAI, selectedPeriod, setSelectedPeriod,
+        fetchAllData, fetchAIAnalysis, error, setError,
       }}
     >
       {children}
