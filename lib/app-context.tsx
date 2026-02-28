@@ -181,7 +181,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setError(null)
 
     try {
-      // Working reliable proxy to bypass CORS restrictions
       const targetUrl = `https://gnews.io/api/v4/top-headlines?category=business&country=in&apikey=${gnewsApiKey}`
       const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(targetUrl)}`
 
@@ -192,8 +191,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       }
 
       const proxyData = await response.json()
-      
-      // AllOrigins returns the data as a string inside the 'contents' property
       const data = JSON.parse(proxyData.contents)
 
       if (data.articles && data.articles.length > 0) {
@@ -277,8 +274,9 @@ Format your response as JSON matching this schema:
 Return ONLY the JSON, no markdown fences or extra text.`
 
     try {
+      // Switched to highly stable gemini-1.5-flash model
       const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${keys.geminiKey}`,
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${keys.geminiKey}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -289,8 +287,18 @@ Return ONLY the JSON, no markdown fences or extra text.`
         }
       )
 
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API returned ${res.status}: ${errText}`);
+      }
+
       const data = await res.json()
-      const textContent = data?.candidates?.[0]?.content?.parts?.[0]?.text
+      
+      if (!data.candidates || data.candidates.length === 0) {
+          throw new Error("No candidates returned from Gemini API");
+      }
+
+      const textContent = data.candidates[0]?.content?.parts?.[0]?.text
 
       if (textContent) {
         let cleaned = textContent;
@@ -305,11 +313,16 @@ Return ONLY the JSON, no markdown fences or extra text.`
           generatedAt: new Date().toISOString(),
         })
       } else {
-        setError("AI returned an unexpected response. Please try again.")
+        throw new Error("Text content was undefined in the API response");
       }
     } catch (err) {
       console.error("Gemini API error:", err)
-      setError("AI analysis failed. Check your Gemini API key and try again.")
+      const msg = err instanceof Error ? err.message : String(err)
+      if (msg.includes("API key not valid") || msg.includes("API_KEY_INVALID")) {
+          setError("Your Gemini API Key is invalid. Please check your settings.");
+      } else {
+          setError(`AI analysis failed: ${msg}. Please try again.`);
+      }
     }
 
     setIsLoadingAI(false)
